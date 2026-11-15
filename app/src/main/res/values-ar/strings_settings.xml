@@ -36,6 +36,9 @@
     <string name="st_effort_high">عالٍ</string>
     <string name="st_effort_high_caption">أقصى عمق للاستدلال</string>
     <string name="st_effort_low">منخفض</string>
+    <string name="st_effort_max">أقصى</string>
+    <string name="st_effort_minimal">أدنى</string>
+    <string name="st_effort_xhigh">مرتفع جدًا</string>
     <string name="st_effort_low_caption">استجابة سريعة · استدلال خفيف</string>
     <string name="st_effort_medium">متوسط</string>
     <string name="st_effort_medium_caption">توازن بين السرعة والمنطق</string>

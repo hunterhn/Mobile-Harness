@@ -36,6 +36,9 @@
     <string name="st_effort_high">Alto</string>
     <string name="st_effort_high_caption">Máxima profundidad de razonamiento</string>
     <string name="st_effort_low">Bajo</string>
+    <string name="st_effort_max">Máximo</string>
+    <string name="st_effort_minimal">Mínimo</string>
+    <string name="st_effort_xhigh">Muy alto</string>
     <string name="st_effort_low_caption">Respuesta rápida · razonamiento ligero</string>
     <string name="st_effort_medium">Medio</string>
     <string name="st_effort_medium_caption">Velocidad y lógica equilibradas</string>

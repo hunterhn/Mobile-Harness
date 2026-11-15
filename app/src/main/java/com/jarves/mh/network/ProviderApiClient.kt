@@ -12,7 +12,12 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-data class DiscoveredModel(val id: String, val displayName: String = id, val isFree: Boolean = false)
+data class DiscoveredModel(
+    val id: String,
+    val displayName: String = id,
+    val isFree: Boolean = false,
+    val reasoningEfforts: List<String> = emptyList(),
+)
 
 sealed interface ModelDiscoveryResult {
     data class Success(val models: List<DiscoveredModel>, val endpoint: String) : ModelDiscoveryResult
@@ -363,7 +368,19 @@ object ModelResponseParser {
                                     it.optString(field, "0").toDoubleOrNull() == 0.0
                                 }
                             } == true
-                            add(DiscoveredModel(id, label, free))
+                            val reasoning = item.optJSONObject("capabilities")?.optJSONObject("reasoning")
+                            val efforts = if (reasoning?.optBoolean("supported", false) == true) {
+                                val array = reasoning.optJSONArray("effort") ?: reasoning.optJSONArray("efforts")
+                                val values = buildList {
+                                    if (array != null) {
+                                        for (index in 0 until array.length()) add(array.optString(index))
+                                    }
+                                }
+                                com.jarves.mh.model.normalizedReasoningEfforts(values)
+                            } else {
+                                emptyList()
+                            }
+                            add(DiscoveredModel(id, label, free, efforts))
                         }
                     }
                 }

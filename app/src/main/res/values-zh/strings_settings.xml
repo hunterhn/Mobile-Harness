@@ -36,6 +36,9 @@
     <string name="st_effort_high">高</string>
     <string name="st_effort_high_caption">最大推理深度</string>
     <string name="st_effort_low">低</string>
+    <string name="st_effort_max">最高</string>
+    <string name="st_effort_minimal">最低</string>
+    <string name="st_effort_xhigh">极高</string>
     <string name="st_effort_low_caption">快速响应 · 轻度推理</string>
     <string name="st_effort_medium">中</string>
     <string name="st_effort_medium_caption">速度与逻辑均衡</string>

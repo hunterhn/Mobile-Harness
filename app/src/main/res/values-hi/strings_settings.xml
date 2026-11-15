@@ -36,6 +36,9 @@
     <string name="st_effort_high">उच्च</string>
     <string name="st_effort_high_caption">अधिकतम तर्क गहराई</string>
     <string name="st_effort_low">कम</string>
+    <string name="st_effort_max">अधिकतम</string>
+    <string name="st_effort_minimal">न्यूनतम</string>
+    <string name="st_effort_xhigh">अति उच्च</string>
     <string name="st_effort_low_caption">तेज़ प्रतिक्रिया · हल्का तर्क</string>
     <string name="st_effort_medium">मध्यम</string>
     <string name="st_effort_medium_caption">संतुलित गति और तर्क</string>

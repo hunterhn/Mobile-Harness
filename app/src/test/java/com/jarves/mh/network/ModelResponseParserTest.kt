@@ -30,4 +30,23 @@ class ModelResponseParserTest {
     fun malformedResponseReturnsEmptyList() {
         assertEquals(emptyList<DiscoveredModel>(), ModelResponseParser.parse("not json"))
     }
+
+    @Test
+    fun parsesReasoningEffortsFromCapabilities() {
+        val models = ModelResponseParser.parse(
+            """{"data":[{"id":"deepseek-v4.1-flash","capabilities":{"reasoning":{"supported":true,"effort":["low","high","max","none"]}}}]}""",
+        )
+
+        assertEquals(listOf("low", "high", "max"), models.single().reasoningEfforts)
+    }
+
+    @Test
+    fun ignoresMissingOrDisabledReasoning() {
+        val models = ModelResponseParser.parse(
+            """{"data":[{"id":"plain"},{"id":"off","capabilities":{"reasoning":{"supported":false,"effort":["high"]}}}]}""",
+        )
+
+        assertEquals(emptyList<String>(), models.first { it.id == "plain" }.reasoningEfforts)
+        assertEquals(emptyList<String>(), models.first { it.id == "off" }.reasoningEfforts)
+    }
 }

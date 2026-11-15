@@ -16,7 +16,9 @@ import com.jarves.mh.model.ProjectChat
 import com.jarves.mh.model.ProviderKind
 import com.jarves.mh.model.ProviderProfile
 import com.jarves.mh.model.defaultDshApiForProvider
+import com.jarves.mh.model.normalizedReasoningEfforts
 import com.jarves.mh.model.projectSlug
+import com.jarves.mh.model.providerSupportsReasoningEffort
 import com.jarves.mh.model.providersForAgent
 import org.json.JSONArray
 import org.json.JSONObject
@@ -227,6 +229,8 @@ class AppPreferences(private val context: Context) {
             .putString("provider_dsh_api", profile.dshApi)
             .putString("provider_openrouter_order", profile.openRouterProviderOrder)
             .putBoolean("provider_openrouter_allow_fallbacks", profile.openRouterAllowFallbacks)
+            .putString("provider_reasoning_effort", profile.reasoningEffort)
+            .putString("provider_reasoning_efforts", JSONArray(profile.reasoningEfforts).toString())
         if (agent != null) {
             val prefix = providerPrefix(agent)
             editor
@@ -236,6 +240,8 @@ class AppPreferences(private val context: Context) {
                 .putString("${prefix}dsh_api", profile.dshApi)
                 .putString("${prefix}openrouter_order", profile.openRouterProviderOrder)
                 .putBoolean("${prefix}openrouter_allow_fallbacks", profile.openRouterAllowFallbacks)
+                .putString("${prefix}reasoning_effort", profile.reasoningEffort)
+                .putString("${prefix}reasoning_efforts", JSONArray(profile.reasoningEfforts).toString())
         }
         editor.apply()
     }
@@ -310,6 +316,23 @@ class AppPreferences(private val context: Context) {
                 preferences.getBoolean("${sourcePrefix}openrouter_allow_fallbacks", true)
             } else {
                 true
+            },
+            reasoningEffort = if (providerSupportsReasoningEffort(kind) && useStoredValues) {
+                normalizedReasoningEfforts(
+                    listOf(preferences.getString("${sourcePrefix}reasoning_effort", "").orEmpty()),
+                ).firstOrNull().orEmpty()
+            } else {
+                ""
+            },
+            reasoningEfforts = if (providerSupportsReasoningEffort(kind) && useStoredValues) {
+                runCatching {
+                    val array = JSONArray(
+                        preferences.getString("${sourcePrefix}reasoning_efforts", "[]").orEmpty(),
+                    )
+                    normalizedReasoningEfforts((0 until array.length()).map { array.optString(it) })
+                }.getOrDefault(emptyList())
+            } else {
+                emptyList()
             },
         )
     }

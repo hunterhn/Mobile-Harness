@@ -36,6 +36,9 @@
     <string name="st_effort_high">High</string>
     <string name="st_effort_high_caption">Maximum reasoning depth</string>
     <string name="st_effort_low">Low</string>
+    <string name="st_effort_max">Max</string>
+    <string name="st_effort_minimal">Minimal</string>
+    <string name="st_effort_xhigh">XHigh</string>
     <string name="st_effort_low_caption">Fast response · light reasoning</string>
     <string name="st_effort_medium">Medium</string>
     <string name="st_effort_medium_caption">Balanced speed &amp; logic</string>

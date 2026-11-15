@@ -11,7 +11,10 @@ import com.jarves.mh.model.DevStack
 import com.jarves.mh.model.ProjectKind
 import com.jarves.mh.model.ProviderKind
 import com.jarves.mh.model.ProviderProfile
+import com.jarves.mh.model.REASONING_EFFORT_LEVELS
 import com.jarves.mh.model.RecoveryDecision
+import com.jarves.mh.model.normalizedReasoningEfforts
+import com.jarves.mh.model.providerSupportsReasoningEffort
 import com.jarves.mh.model.RecoveryFailureInfo
 import com.jarves.mh.model.RuntimeEvent
 import com.jarves.mh.model.RuntimeRecoveryContext
@@ -1406,10 +1409,15 @@ internal fun withOpenCodeGoSession(
 /** Pure settings.yaml body so the dsh contract can be tested without a rootfs. */
 internal fun buildDshSettings(route: DshRoute, provider: ProviderProfile): String {
     val model = provider.model.ifBlank { route.defaultModel }
+    val effort = profileReasoningEffort(provider)
+    val efforts = reasoningEffortsForSettings(provider, effort)
     return buildString {
         appendLine("agent-default-model:")
         appendLine("  provider: ${route.name}")
         appendLine("  model: ${dshYamlQuote(model)}")
+        if (effort != null) {
+            appendLine("  reasoningEffort: ${dshYamlQuote(effort)}")
+        }
         if (route.custom != null) {
             appendLine("llm-pi-ai:")
             appendLine("  providers:")
@@ -1417,6 +1425,10 @@ internal fun buildDshSettings(route: DshRoute, provider: ProviderProfile): Strin
             appendLine("      apiKeyEnv: ${route.keyEnv}")
             appendLine("      api: ${route.custom.api}")
             appendLine("      baseURL: ${dshYamlQuote(route.custom.baseUrl)}")
+            if (effort != null) {
+                appendLine("      compat:")
+                appendLine("        forceAdaptiveThinking: true")
+            }
             if (route.headers.isNotEmpty()) {
                 appendLine("      headers:")
                 route.headers.toSortedMap().forEach { (name, value) ->
@@ -1425,8 +1437,28 @@ internal fun buildDshSettings(route: DshRoute, provider: ProviderProfile): Strin
             }
             appendLine("      models:")
             appendLine("        - id: ${dshYamlQuote(model)}")
+            if (efforts.isNotEmpty()) {
+                appendLine("          reasoningEfforts:")
+                efforts.forEach { level ->
+                    appendLine("            $level: ${dshYamlQuote(level)}")
+                }
+            }
         }
     }
+}
+
+/** The selected level, only when this provider and level are supported by the harness. */
+private fun profileReasoningEffort(provider: ProviderProfile): String? =
+    provider.reasoningEffort
+        .takeIf { providerSupportsReasoningEffort(provider.kind) }
+        ?.let { normalizedReasoningEfforts(listOf(it)).firstOrNull() }
+
+/** The model's advertised levels plus the selected one, so DSH can validate the request. */
+private fun reasoningEffortsForSettings(provider: ProviderProfile, effort: String?): List<String> {
+    if (effort == null) return emptyList()
+    return (normalizedReasoningEfforts(provider.reasoningEfforts) + effort)
+        .distinct()
+        .sortedBy { REASONING_EFFORT_LEVELS.indexOf(it) }
 }
 
 private fun dshYamlQuote(value: String): String = "'${value.replace("'", "''")}'"

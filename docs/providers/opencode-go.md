@@ -85,6 +85,22 @@ The API key is **never** written to `settings.yaml`. It travels only in the
 process environment (`MH_DSH_API_KEY`), and error messages redact `oc_sk_...`
 values before they reach the UI or logs.
 
+## Reasoning effort
+
+The public catalog reports `capabilities.reasoning.effort` for each model.
+Mobile Harness offers only those levels, both in the provider card and in the
+chat composer. DeepSeek V4.1 Flash offers `low`, `high`, and `max`.
+
+- **DeepSeek Harness:** writes `agent-default-model.reasoningEffort`,
+  `models[].reasoningEfforts`, and `compat.forceAdaptiveThinking: true`. The
+  adaptive flag makes pi-ai send `thinking: {type: adaptive}` +
+  `output_config.effort`; the Go Anthropic lane rejects `reasoning_effort`.
+- **Claude Code:** sets `CLAUDE_CODE_EFFORT_LEVEL`.
+- **Persistence:** the chat selector saves immediately; the Agent selector
+  saves with **Test connection**, matching model/provider edits.
+- **Scope:** only `OPENCODE_GO` exposes the control. Other providers keep their
+  existing behavior.
+
 ## Setup
 
 1. Open **Settings → Agent → DeepSeek Harness** (or **Claude Code**).
@@ -120,7 +136,11 @@ using a model with sensitive code.
 | --- | --- |
 | `DshRouteMapperTest.openCodeGoUsesFixedAnthropicMessagesRoute` | Route name, protocol, base URL, key env, default model |
 | `DshSettingsBuilderTest` | YAML header block, no key, Custom profile pointed at Go |
+| `DshSettingsBuilderTest.openCodeGoWritesSelectedReasoningEffortAndAdaptiveCompat` | Effort YAML and adaptive-thinking compat |
 | `ProviderApiClientTest` | Endpoints, Go headers, no headers for other endpoints, `oc_sk_` redaction |
+| `ModelResponseParserTest` | Reads `capabilities.reasoning.effort` from discovery |
+| `ReasoningEffortTest` | Level normalization, fallbacks, chat selection transition |
 | `RuntimeLaunchConfigBuilderTest.openCodeGoUsesFixedAnthropicBaseWithoutLocalGateway` | Claude Code env uses the fixed base and model |
+| `RuntimeLaunchConfigBuilderTest.openCodeGoSetsClaudeCodeEffortLevel` | Claude Code receives `CLAUDE_CODE_EFFORT_LEVEL` |
 | `AgentProviderPresetTest.openCodeGoIsOfferedToHarnessAndClaudeCodeOnly` | Provider visibility |
 | `ProviderLabelsTest` | Title and subtitle resources exist |

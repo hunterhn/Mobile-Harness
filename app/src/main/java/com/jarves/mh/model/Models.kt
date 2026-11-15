@@ -153,6 +153,53 @@ fun providersForAgent(agent: AgentKind): List<ProviderKind> = when (agent) {
     AgentKind.ANTIGRAVITY -> emptyList()
 }
 
+/** Levels the app is willing to send to a harness, in escalation order. */
+val REASONING_EFFORT_LEVELS: List<String> = listOf("minimal", "low", "medium", "high", "xhigh", "max")
+
+/** Only OpenCode Go exposes the effort control in this iteration. */
+fun providerSupportsReasoningEffort(kind: ProviderKind): Boolean = kind == ProviderKind.OPENCODE_GO
+
+/** Drops catalog values the harness cannot express and keeps the display order stable. */
+fun normalizedReasoningEfforts(values: Iterable<String>): List<String> = values
+    .map { it.trim().lowercase(Locale.ROOT) }
+    .filter { it in REASONING_EFFORT_LEVELS }
+    .distinct()
+    .sortedBy { REASONING_EFFORT_LEVELS.indexOf(it) }
+
+/** Keeps the saved level when this model still offers it, otherwise picks a safe default. */
+fun preferredReasoningEffort(efforts: List<String>, current: String = ""): String {
+    val normalized = normalizedReasoningEfforts(efforts)
+    return current.takeIf { it in normalized }
+        ?: "high".takeIf { it in normalized }
+        ?: normalized.lastOrNull().orEmpty()
+}
+
+/**
+ * Levels known before the first catalog refresh. The live catalog replaces these,
+ * but the chat control must work for a saved profile even before discovery runs.
+ */
+fun fallbackReasoningEfforts(kind: ProviderKind, model: String): List<String> {
+    if (!providerSupportsReasoningEffort(kind)) return emptyList()
+    return when (model) {
+        "deepseek-v4.1-flash", "kimi-k3.1-pro" -> listOf("low", "high", "max")
+        "gpt-6-luna", "claude-haiku-5-5" -> listOf("low", "medium", "high", "xhigh", "max")
+        else -> emptyList()
+    }
+}
+
+/**
+ * Applies a chat- or settings-selected level to this profile. Returns null when the
+ * provider is not eligible, the level is unknown, or the model does not offer it.
+ */
+fun ProviderProfile.withSelectedReasoningEffort(effort: String): ProviderProfile? {
+    if (!providerSupportsReasoningEffort(kind)) return null
+    val allowed = normalizedReasoningEfforts(reasoningEfforts)
+        .ifEmpty { fallbackReasoningEfforts(kind, model) }
+    val selected = normalizedReasoningEfforts(listOf(effort)).firstOrNull() ?: return null
+    if (selected !in allowed) return null
+    return copy(reasoningEffort = selected, reasoningEfforts = allowed)
+}
+
 data class ProviderProfile(
     val kind: ProviderKind,
     val baseUrl: String = kind.defaultBaseUrl,
@@ -164,6 +211,10 @@ data class ProviderProfile(
     val openRouterProviderOrder: String = "",
     /** Whether OpenRouter may use providers outside [openRouterProviderOrder]. */
     val openRouterAllowFallbacks: Boolean = true,
+    /** Selected reasoning level for providers that expose effort control (currently OpenCode Go). */
+    val reasoningEffort: String = "",
+    /** Reasoning levels the selected model advertises, as reported by discovery. */
+    val reasoningEfforts: List<String> = emptyList(),
 ) {
     /** Effective base URL: fixed kinds always resolve to their constant, ignoring stored drift. */
     val resolvedBaseUrl: String get() = if (kind.fixedBaseUrl) kind.defaultBaseUrl else baseUrl

@@ -54,6 +54,7 @@ import com.jarves.mh.model.WorkspaceEntry
 import com.jarves.mh.model.projectSlug
 import com.jarves.mh.model.generateQuickChatIdentity
 import com.jarves.mh.model.providerProtocolForAgent
+import com.jarves.mh.model.withSelectedReasoningEffort
 import com.jarves.mh.network.ConnectionValidation
 import com.jarves.mh.network.ModelDiscoveryResult
 import com.jarves.mh.network.ProviderApiClient
@@ -2908,6 +2909,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 antigravityEffort = effort,
                 antigravityModel = matchingModel ?: it.antigravityModel,
+            )
+        }
+    }
+
+    /** Applies a level selected from the chat composer to the active provider profile. */
+    fun setReasoningEffort(effort: String) {
+        val current = _state.value
+        val updated = current.provider.withSelectedReasoningEffort(effort) ?: return
+        preferences.saveProvider(updated, current.agentKind)
+        _state.update {
+            it.copy(
+                provider = updated,
+                // A manual retry is a fresh turn; let it use the level the user just chose.
+                pendingRetryRequest = it.pendingRetryRequest?.copy(provider = updated),
             )
         }
     }

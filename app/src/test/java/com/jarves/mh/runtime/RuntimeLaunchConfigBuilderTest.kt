@@ -2,6 +2,7 @@ package com.jarves.mh.runtime
 
 import com.jarves.mh.model.ProviderKind
 import com.jarves.mh.model.ProviderProfile
+import com.jarves.mh.model.withSelectedReasoningEffort
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -109,5 +110,40 @@ class RuntimeLaunchConfigBuilderTest {
         assertEquals("https://opencode.ai/inference/go/anthropic", config.environment["ANTHROPIC_BASE_URL"])
         assertEquals("deepseek-v4.1-flash", config.environment["ANTHROPIC_MODEL"])
         assertEquals("oc_sk_secret", config.environment["ANTHROPIC_AUTH_TOKEN"])
+    }
+
+    @Test
+    fun openCodeGoSetsClaudeCodeEffortLevel() {
+        val config = RuntimeLaunchConfigBuilder.build(
+            ProviderProfile(ProviderKind.OPENCODE_GO, reasoningEffort = "max"),
+            authToken = "oc_sk_secret",
+        )
+
+        assertEquals("max", config.environment["CLAUDE_CODE_EFFORT_LEVEL"])
+    }
+
+    @Test
+    fun otherProvidersIgnoreStoredEffort() {
+        val config = RuntimeLaunchConfigBuilder.build(
+            ProviderProfile(ProviderKind.ANTHROPIC, reasoningEffort = "max"),
+            authToken = "secret",
+        )
+
+        assertNull(config.environment["CLAUDE_CODE_EFFORT_LEVEL"])
+    }
+
+    @Test
+    fun minimalEffortMapsToClaudeCodeLow() {
+        assertEquals("low", claudeCodeEffortLevel("minimal"))
+        assertEquals("max", claudeCodeEffortLevel(" MAX "))
+        assertNull(claudeCodeEffortLevel("none"))
+    }
+
+    @Test
+    fun chatSelectedEffortReachesClaudeCode() {
+        val profile = ProviderProfile(ProviderKind.OPENCODE_GO).withSelectedReasoningEffort("low")!!
+        val config = RuntimeLaunchConfigBuilder.build(profile, authToken = "oc_sk_secret")
+
+        assertEquals("low", config.environment["CLAUDE_CODE_EFFORT_LEVEL"])
     }
 }

@@ -101,7 +101,11 @@ import com.jarves.mh.model.DSH_PROTOCOL_PROVIDERS
 import com.jarves.mh.model.ProviderKind
 import com.jarves.mh.model.ProviderProfile
 import com.jarves.mh.model.defaultDshApiForProvider
+import com.jarves.mh.model.fallbackReasoningEfforts
 import com.jarves.mh.model.inferredDshApiForUrl
+import com.jarves.mh.model.normalizedReasoningEfforts
+import com.jarves.mh.model.preferredReasoningEffort
+import com.jarves.mh.model.providerSupportsReasoningEffort
 import com.jarves.mh.model.providersForAgent
 import com.jarves.mh.network.ConnectionValidation
 import com.jarves.mh.network.DiscoveredModel
@@ -211,6 +215,9 @@ fun AgentScreen(
     var openRouterAllowFallbacks by rememberSaveable(state.provider.openRouterAllowFallbacks) {
         mutableStateOf(state.provider.openRouterAllowFallbacks)
     }
+    var reasoningEffort by rememberSaveable(state.provider.reasoningEffort) {
+        mutableStateOf(state.provider.reasoningEffort)
+    }
     var apiKey by rememberSaveable(selectedKind) { mutableStateOf(getSavedApiKey(selectedKind)) }
     var savedKeys by remember(selectedKind, state.activeApiKeyName) {
         mutableStateOf(getSavedApiKeys(selectedKind))
@@ -249,6 +256,21 @@ fun AgentScreen(
             it.id.contains(q, true) || it.displayName.contains(q, true)
         }
     }
+
+    val effortOptions = remember(selectedKind, model, models, state.provider.model, state.provider.reasoningEfforts) {
+        if (!providerSupportsReasoningEffort(selectedKind)) {
+            emptyList()
+        } else {
+            val discovered = models.firstOrNull { it.id == model }?.reasoningEfforts.orEmpty()
+            val saved = state.provider.reasoningEfforts.takeIf { model == state.provider.model }.orEmpty()
+            val fallback = defaultModelsForProvider(selectedKind, context)
+                .firstOrNull { it.id == model }
+                ?.reasoningEfforts
+                .orEmpty()
+            normalizedReasoningEfforts(discovered.ifEmpty { saved.ifEmpty { fallback } })
+        }
+    }
+    val selectedReasoningEffort = preferredReasoningEffort(effortOptions, reasoningEffort)
 
     val antigravityModelList = remember(state.antigravityModels) {
         if (state.antigravityModels.isNotEmpty()) state.antigravityModels
@@ -302,6 +324,8 @@ fun AgentScreen(
                 dshApi = dshApi,
                 openRouterProviderOrder = openRouterProviderOrder,
                 openRouterAllowFallbacks = openRouterAllowFallbacks,
+                reasoningEffort = if (providerSupportsReasoningEffort(kind)) selectedReasoningEffort else "",
+                reasoningEfforts = if (providerSupportsReasoningEffort(kind)) effortOptions else emptyList(),
             )
             when (val result = onDiscoverModels(profile, effectiveKey)) {
                 is ModelDiscoveryResult.Success -> {
@@ -1009,6 +1033,8 @@ fun AgentScreen(
                         selectedKind = selectedKind,
                         baseUrl = baseUrl,
                         model = model,
+                        reasoningEffort = selectedReasoningEffort,
+                        reasoningEfforts = effortOptions,
                         dshApi = dshApi,
                         openRouterProviderOrder = openRouterProviderOrder,
                         openRouterAllowFallbacks = openRouterAllowFallbacks,
@@ -1031,6 +1057,7 @@ fun AgentScreen(
                             dshApi = defaultDshApiForProvider(kind)
                             openRouterProviderOrder = ""
                             openRouterAllowFallbacks = true
+                            reasoningEffort = ""
                             models = emptyList()
                             modelSearch = ""
                             showModels = false
@@ -1050,6 +1077,7 @@ fun AgentScreen(
                             keyConnectionStatuses = emptyMap()
                         },
                         onModel = { model = it; status = null; statusProviderMessage = null; keyConnectionStatuses = emptyMap() },
+                        onReasoningEffort = { reasoningEffort = it },
                         onDshApi = { dshApi = it; status = null; statusProviderMessage = null; keyConnectionStatuses = emptyMap() },
                         onOpenRouterProviderOrder = {
                             openRouterProviderOrder = it
@@ -1112,6 +1140,8 @@ fun AgentScreen(
                                     dshApi = dshApi,
                                     openRouterProviderOrder = openRouterProviderOrder,
                                     openRouterAllowFallbacks = openRouterAllowFallbacks,
+                                    reasoningEffort = if (providerSupportsReasoningEffort(kind)) selectedReasoningEffort else "",
+                                    reasoningEfforts = if (providerSupportsReasoningEffort(kind)) effortOptions else emptyList(),
                                 )
                                 if (kind == ProviderKind.CLAUDE) {
                                     onSaveProvider(profile, apiKey.trim())
@@ -1520,6 +1550,8 @@ private fun AgentProviderCard(
     selectedKind: ProviderKind,
     baseUrl: String,
     model: String,
+    reasoningEffort: String,
+    reasoningEfforts: List<String>,
     dshApi: String,
     openRouterProviderOrder: String,
     openRouterAllowFallbacks: Boolean,
@@ -1538,6 +1570,7 @@ private fun AgentProviderCard(
     onProvider: (ProviderKind) -> Unit,
     onBaseUrl: (String) -> Unit,
     onModel: (String) -> Unit,
+    onReasoningEffort: (String) -> Unit,
     onDshApi: (String) -> Unit,
     onOpenRouterProviderOrder: (String) -> Unit,
     onOpenRouterAllowFallbacks: (Boolean) -> Unit,
@@ -1736,6 +1769,15 @@ private fun AgentProviderCard(
                     expanded = false,
                     onClick = onOpenModelSheet,
                 )
+
+                if (providerSupportsReasoningEffort(selectedKind) && reasoningEfforts.isNotEmpty()) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    ReasoningEffortSelector(
+                        effort = reasoningEffort,
+                        efforts = reasoningEfforts,
+                        onEffort = onReasoningEffort,
+                    )
+                }
             } else {
                 Text(
                     stringResource(R.string.st_claude_setup_token_hint),
@@ -2162,6 +2204,67 @@ private fun AgentSelectionDot(selected: Boolean) {
     }
 }
 
+@Composable
+private fun ReasoningEffortSelector(
+    effort: String,
+    efforts: List<String>,
+    onEffort: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.st_reasoning_effort),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                reasoningEffortLabel(effort),
+                fontSize = 11.sp,
+                color = PocketOrange,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier.padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                efforts.forEach { level ->
+                    val isSelected = effort == level
+                    Surface(
+                        shape = RoundedCornerShape(9.dp),
+                        color = if (isSelected) PocketOrange else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onEffort(level) },
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                reasoningEffortLabel(level),
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color(0xFF241107) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** Provides popular default models for providers when discovery hasn't been run or is unavailable. */
 private fun defaultModelsForProvider(kind: ProviderKind, context: android.content.Context): List<DiscoveredModel> = when (kind) {
     ProviderKind.DEEPSEEK -> listOf(
@@ -2171,10 +2274,10 @@ private fun defaultModelsForProvider(kind: ProviderKind, context: android.conten
         DiscoveredModel(ProviderKind.OPENCODE_ZEN.defaultModel, context.getString(R.string.md_model_opencode_default)),
     )
     ProviderKind.OPENCODE_GO -> listOf(
-        DiscoveredModel("deepseek-v4.1-flash", "DeepSeek V4.1 Flash"),
-        DiscoveredModel("kimi-k3.1-pro", "Kimi K3.1 Pro"),
-        DiscoveredModel("gpt-6-luna", "GPT-6 Luna"),
-        DiscoveredModel("claude-haiku-5-5", "Claude Haiku 5.5"),
+        DiscoveredModel("deepseek-v4.1-flash", "DeepSeek V4.1 Flash", reasoningEfforts = fallbackReasoningEfforts(kind, "deepseek-v4.1-flash")),
+        DiscoveredModel("kimi-k3.1-pro", "Kimi K3.1 Pro", reasoningEfforts = fallbackReasoningEfforts(kind, "kimi-k3.1-pro")),
+        DiscoveredModel("gpt-6-luna", "GPT-6 Luna", reasoningEfforts = fallbackReasoningEfforts(kind, "gpt-6-luna")),
+        DiscoveredModel("claude-haiku-5-5", "Claude Haiku 5.5", reasoningEfforts = fallbackReasoningEfforts(kind, "claude-haiku-5-5")),
     )
     ProviderKind.NVIDIA_NIM -> listOf(
         DiscoveredModel(ProviderKind.NVIDIA_NIM.defaultModel, "Qwen 2.5 Coder 32B"),

@@ -36,6 +36,9 @@
     <string name="st_effort_high">Υψηλή</string>
     <string name="st_effort_high_caption">Μέγιστο βάθος συλλογισμού</string>
     <string name="st_effort_low">Χαμηλή</string>
+    <string name="st_effort_max">Μέγιστο</string>
+    <string name="st_effort_minimal">Ελάχιστο</string>
+    <string name="st_effort_xhigh">Πολύ υψηλό</string>
     <string name="st_effort_low_caption">Γρήγορη απόκριση · ελαφρύς συλλογισμός</string>
     <string name="st_effort_medium">Μέτρια</string>
     <string name="st_effort_medium_caption">Ισορροπία ταχύτητας &amp; λογικής</string>

@@ -92,6 +92,17 @@ fun DevStack.installsSummaryRes(): Int = when (this) {
 @Composable fun DevStack.localizedDescription(): String = stringResource(descriptionRes())
 @Composable fun DevStack.localizedInstallsSummary(): String = stringResource(installsSummaryRes())
 
+@Composable
+fun reasoningEffortLabel(effort: String): String = when (effort) {
+    "minimal" -> stringResource(R.string.st_effort_minimal)
+    "low" -> stringResource(R.string.st_effort_low)
+    "medium" -> stringResource(R.string.st_effort_medium)
+    "high" -> stringResource(R.string.st_effort_high)
+    "xhigh" -> stringResource(R.string.st_effort_xhigh)
+    "max" -> stringResource(R.string.st_effort_max)
+    else -> effort
+}
+
 // Context variants for non-Compose code; resolved in the language chosen inside the app.
 fun ProviderKind.localizedTitle(context: Context): String = AppStrings.get(context, titleRes())
 fun ProviderKind.localizedSubtitle(context: Context): String = AppStrings.get(context, subtitleRes())

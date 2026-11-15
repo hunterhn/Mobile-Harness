@@ -36,6 +36,9 @@
     <string name="st_effort_high">Высокий</string>
     <string name="st_effort_high_caption">Максимальная глубина рассуждений</string>
     <string name="st_effort_low">Низкий</string>
+    <string name="st_effort_max">Максимальный</string>
+    <string name="st_effort_minimal">Минимальный</string>
+    <string name="st_effort_xhigh">Очень высокий</string>
     <string name="st_effort_low_caption">Быстрый ответ · лёгкие рассуждения</string>
     <string name="st_effort_medium">Средний</string>
     <string name="st_effort_medium_caption">Баланс скорости и логики</string>

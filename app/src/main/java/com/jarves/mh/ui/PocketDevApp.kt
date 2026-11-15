@@ -234,7 +234,11 @@ import com.jarves.mh.model.AndroidTemplate
 import com.jarves.mh.model.ProjectChat
 import com.jarves.mh.model.ProviderKind
 import com.jarves.mh.model.ProviderProfile
+import com.jarves.mh.model.fallbackReasoningEfforts
 import com.jarves.mh.model.inferredDshApiForUrl
+import com.jarves.mh.model.normalizedReasoningEfforts
+import com.jarves.mh.model.preferredReasoningEffort
+import com.jarves.mh.model.providerSupportsReasoningEffort
 import com.jarves.mh.model.providersForAgent
 import com.jarves.mh.model.ToolRequest
 import com.jarves.mh.model.WorkspaceEntry
@@ -411,6 +415,7 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
             state = state,
             onBack = viewModel::closeProject,
             onSend = viewModel::sendPrompt,
+            onSetReasoningEffort = viewModel::setReasoningEffort,
             onStop = viewModel::stopTask,
             onRetry = viewModel::retryLastTurn,
             onSteerFollowUp = viewModel::steerQueuedFollowUp,
@@ -4418,6 +4423,7 @@ private fun WorkspaceScreen(
     state: AppUiState,
     onBack: () -> Unit,
     onSend: (String) -> Unit,
+    onSetReasoningEffort: (String) -> Unit,
     onStop: () -> Unit,
     onRetry: () -> Unit,
     onSteerFollowUp: (String) -> Unit,
@@ -4622,6 +4628,23 @@ private fun WorkspaceScreen(
     var showChats by rememberSaveable { mutableStateOf(false) }
     var showAndroidBuild by rememberSaveable { mutableStateOf(false) }
     val activeChat = state.projectChats.firstOrNull { it.id == state.activeChatId }
+    val chatReasoningEfforts = remember(
+        state.agentKind,
+        state.provider.kind,
+        state.provider.model,
+        state.provider.reasoningEfforts,
+    ) {
+        if (state.agentKind == AgentKind.ANTIGRAVITY || !providerSupportsReasoningEffort(state.provider.kind)) {
+            emptyList()
+        } else {
+            normalizedReasoningEfforts(
+                state.provider.reasoningEfforts.ifEmpty {
+                    fallbackReasoningEfforts(state.provider.kind, state.provider.model)
+                },
+            )
+        }
+    }
+    val chatReasoningEffort = preferredReasoningEffort(chatReasoningEfforts, state.provider.reasoningEffort)
     val requestAndroidAction: (AndroidAction) -> Unit = { action ->
         val mayInstall = action in setOf(AndroidAction.INSTALL, AndroidAction.RUN, AndroidAction.BUILD_AND_RUN)
         if (mayInstall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
@@ -4846,6 +4869,9 @@ private fun WorkspaceScreen(
                     queuedFollowUps = state.queuedFollowUps,
                     onSteerFollowUp = onSteerFollowUp,
                     onRemoveFollowUp = onRemoveFollowUp,
+                    reasoningEffort = chatReasoningEffort,
+                    reasoningEfforts = chatReasoningEfforts,
+                    onReasoningEffort = onSetReasoningEffort,
                 )
                 WorkspaceTab.FILES -> FilesTab(
                     files = state.workspaceFiles,
@@ -6488,6 +6514,9 @@ private fun ChatTab(
     queuedFollowUps: List<QueuedFollowUp> = emptyList(),
     onSteerFollowUp: (String) -> Unit = {},
     onRemoveFollowUp: (String) -> Unit = {},
+    reasoningEffort: String = "",
+    reasoningEfforts: List<String> = emptyList(),
+    onReasoningEffort: (String) -> Unit = {},
     readOnly: Boolean = false,
     readOnlyBlocked: Boolean = false,
     onContinueHere: () -> Unit = {},
@@ -6652,6 +6681,20 @@ private fun ChatTab(
                     }
                 }
 
+                if (reasoningEfforts.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ChatEffortChip(
+                            effort = reasoningEffort,
+                            efforts = reasoningEfforts,
+                            onEffort = onReasoningEffort,
+                        )
+                    }
+                }
+
                 val canSend = prompt.isNotBlank() || pendingAttachments.isNotEmpty()
 
                 Surface(
@@ -6776,6 +6819,75 @@ private fun ChatTab(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatEffortChip(
+    effort: String,
+    efforts: List<String>,
+    onEffort: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            modifier = Modifier.clickable { expanded = true },
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 10.dp, end = 7.dp, top = 5.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    stringResource(R.string.st_reasoning_effort),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    reasoningEffortLabel(effort),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(2.dp))
+                Icon(
+                    Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            efforts.forEach { level ->
+                DropdownMenuItem(
+                    text = { Text(reasoningEffortLabel(level)) },
+                    leadingIcon = {
+                        if (level == effort) {
+                            Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        } else {
+                            Spacer(Modifier.size(16.dp))
+                        }
+                    },
+                    onClick = {
+                        onEffort(level)
+                        expanded = false
+                    },
+                )
             }
         }
     }

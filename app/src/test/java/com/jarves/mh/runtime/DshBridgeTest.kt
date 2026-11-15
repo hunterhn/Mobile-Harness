@@ -9,6 +9,7 @@ import com.jarves.mh.model.defaultDshApiForProvider
 import com.jarves.mh.model.inferredDshApiForUrl
 import com.jarves.mh.model.providerProtocolForAgent
 import com.jarves.mh.model.providersForAgent
+import com.jarves.mh.model.withSelectedReasoningEffort
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -473,6 +474,111 @@ class DshSettingsBuilderTest {
         val yaml = buildDshSettings(route, profile)
         assertTrue(route.headers.isEmpty())
         assertFalse(yaml, yaml.contains("headers:"))
+    }
+
+    @Test
+    fun openCodeGoWritesSelectedReasoningEffortAndAdaptiveCompat() {
+        val profile = ProviderProfile(
+            ProviderKind.OPENCODE_GO,
+            reasoningEffort = "max",
+            reasoningEfforts = listOf("low", "high", "max"),
+        )
+        val yaml = buildDshSettings(DshRouteMapper.forProfile(profile), profile)
+
+        assertTrue(yaml, yaml.contains("reasoningEffort: 'max'"))
+        assertTrue(yaml, yaml.contains("forceAdaptiveThinking: true"))
+        assertTrue(yaml, yaml.contains("reasoningEfforts:"))
+        assertTrue(yaml, yaml.contains("low: 'low'"))
+        assertTrue(yaml, yaml.contains("high: 'high'"))
+        assertTrue(yaml, yaml.contains("max: 'max'"))
+        assertFalse(yaml, yaml.contains("oc_sk_"))
+    }
+
+    @Test
+    fun nonGoProfilesNeverWriteReasoningEffort() {
+        val profile = ProviderProfile(
+            ProviderKind.ANTHROPIC,
+            model = "claude-sonnet-4-6",
+            reasoningEffort = "max",
+            reasoningEfforts = listOf("high", "max"),
+        )
+        val yaml = buildDshSettings(DshRouteMapper.forProfile(profile), profile)
+
+        assertFalse(yaml, yaml.contains("reasoningEffort"))
+        assertFalse(yaml, yaml.contains("forceAdaptiveThinking"))
+    }
+
+    @Test
+    fun invalidOpenCodeGoEffortIsIgnored() {
+        val profile = ProviderProfile(
+            ProviderKind.OPENCODE_GO,
+            reasoningEffort = "none",
+            reasoningEfforts = listOf("none"),
+        )
+        val yaml = buildDshSettings(DshRouteMapper.forProfile(profile), profile)
+
+        assertFalse(yaml, yaml.contains("reasoningEffort"))
+        assertFalse(yaml, yaml.contains("forceAdaptiveThinking"))
+    }
+
+    @Test
+    fun selectedOpenCodeGoEffortIsDeclaredEvenWithoutASavedCatalogList() {
+        val profile = ProviderProfile(ProviderKind.OPENCODE_GO, reasoningEffort = "high")
+        val yaml = buildDshSettings(DshRouteMapper.forProfile(profile), profile)
+
+        assertTrue(yaml, yaml.contains("reasoningEffort: 'high'"))
+        assertTrue(yaml, yaml.contains("          reasoningEfforts:"))
+        assertTrue(yaml, yaml.contains("            high: 'high'"))
+    }
+
+    @Test
+    fun openCodeGoSettingsMatchTheExpectedYamlShape() {
+        val profile = ProviderProfile(
+            ProviderKind.OPENCODE_GO,
+            reasoningEffort = "max",
+            reasoningEfforts = listOf("low", "high", "max"),
+        )
+        val route = withOpenCodeGoSession(
+            DshRouteMapper.forProfile(profile),
+            profile,
+            "6f1c9a0e-2b3d-4e5f-8a9b-0c1d2e3f4a5b",
+        )
+
+        assertEquals(
+            """
+            agent-default-model:
+              provider: opencode-go
+              model: 'deepseek-v4.1-flash'
+              reasoningEffort: 'max'
+            llm-pi-ai:
+              providers:
+                opencode-go:
+                  apiKeyEnv: MH_DSH_API_KEY
+                  api: anthropic-messages
+                  baseURL: 'https://opencode.ai/inference/go/anthropic'
+                  compat:
+                    forceAdaptiveThinking: true
+                  headers:
+                    x-opencode-session: 'ses_6f1c9a0e2b3d4e5f8a9b0c1d2e3f4a5b'
+                  models:
+                    - id: 'deepseek-v4.1-flash'
+                      reasoningEfforts:
+                        low: 'low'
+                        high: 'high'
+                        max: 'max'
+
+            """.trimIndent(),
+            buildDshSettings(route, profile),
+        )
+    }
+
+    @Test
+    fun chatSelectedEffortReachesDshSettings() {
+        val profile = ProviderProfile(ProviderKind.OPENCODE_GO).withSelectedReasoningEffort("max")!!
+        val yaml = buildDshSettings(DshRouteMapper.forProfile(profile), profile)
+
+        assertTrue(yaml, yaml.contains("reasoningEffort: 'max'"))
+        assertTrue(yaml, yaml.contains("            max: 'max'"))
     }
 }
 
